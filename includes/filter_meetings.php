@@ -25,6 +25,9 @@ class tsml_filter_meetings
 
         if (!empty($arguments['day']) || (isset($arguments['day']) && $arguments['day'] == 0)) {
             $this->day = is_array($arguments['day']) ? array_map('intval', $arguments['day']) : array(intval($arguments['day']));
+            /* LD_MASTER: DAY 7 IS "See Notes", multiple days. We don't split meetings with 
+            Multiple days into individual meetings. Rather just have see notes. */
+            array_push($this->day, '7');
         }
 
         if (!empty($arguments['district'])) {

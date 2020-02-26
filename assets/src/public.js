@@ -579,11 +579,30 @@ jQuery(function($){
 							break;
 							
 							case 'location':
-							row += '<td class="location" data-sort="' + sanitizeTitle(obj.location) + '-' + sort_time + '">' + obj.location + '</td>';
+                      		if (obj.physical_location == 'Y') {
+                        		locationData = obj.location
+                        	} else {
+                        	
+								 if(obj.types.indexOf('TE')) {
+									locationData ='Telephone';
+								}
+								 if(obj.types.indexOf('NET')) {
+									locationData ='Internet';
+								}
+                        	
+                        	}
+
+							row += '<td class="location" data-sort="' + sanitizeTitle(locationData) + '-' + sort_time + '">' + locationData + '</td>';
 							break;
 							
 							case 'address':
-							row += '<td class="address" data-sort="' + sanitizeTitle(obj.formatted_address) + '-' + sort_time + '">' + formatAddress(obj.formatted_address, tsml.street_only) + '</td>';
+                        	if (obj.physical_location == 'Y') {
+                        		formatted_addressData = obj.formatted_address
+                        	} else {
+                        		formatted_addressData =''
+                        	}
+							
+							row += '<td class="address" data-sort="' + sanitizeTitle(formatted_addressData) + '-' + sort_time + '">' + formatAddress(formatted_addressData, tsml.street_only) + '</td>';
 							break;
 							
 							case 'region':

@@ -35,9 +35,9 @@ function tsml_admin_init()
 
         $meeting = tsml_get_meeting();
 
-        if (!empty($meeting->data_source)) {
-            tsml_alert(__('This meeting was imported from an external data source. Any changes you make here will be overwritten when you refresh the data.', '12-step-meeting-list'), 'warning');
-        }
+       // if (!empty($meeting->data_source)) {
+            tsml_alert(__('<h3 style="color:red;">This meeting was imported from the master database. Any changes you make here will be overwritten when you refresh the data. Make changes here only in an emergency. Also note that all fields are not available for editing on this form.</h3>', '12-step-meeting-list'), 'warning');
+       // }
 
         //nonce field
         wp_nonce_field($tsml_nonce, 'tsml_nonce', false);
@@ -80,7 +80,7 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
 		</div>
 		<?php }?>
 		<div class="meta_form_row">
-			<label for="content"><?php _e('Notes', '12-step-meeting-list')?></label>
+			<label for="content"><?php _e('Group Notes', '12-step-meeting-list')?></label>
 			<textarea name="content" id="content" placeholder="<?php _e('eg. Birthday speaker meeting last Saturday of the month', '12-step-meeting-list')?>"><?php echo $meeting->post_content ?></textarea>
 		</div>
 		<?php
@@ -127,9 +127,12 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
 			<label><input type="checkbox" name="apply_address_to_location"> <?php _e('Apply this updated address to all meetings at this location', '12-step-meeting-list')?></label>
 		</div>
 		<?php }
+		//print_r($location);
+		print "REGION ID: " . $location->region_id . "<BR>";
         if (wp_count_terms('tsml_region')) {?>
 		<div class="meta_form_row">
-			<label for="region"><?php _e('Region', '12-step-meeting-list')?></label>
+			<label for="region">City</label>
+			<!---<label for="region"><?php _e('Region', '12-step-meeting-list')?></label>--->
 			<?php wp_dropdown_categories(array(
             'name' => 'region',
             'taxonomy' => 'tsml_region',
@@ -141,7 +144,7 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
         ))?>
 		</div>
 		<?php }?>
-
+<?php echo "Latitude: " . $location->latitude . "  Longitude: " . $location->longitude . "<br>"; ?>
 		<div class="meta_form_row">
 			<label><?php _e('Map', '12-step-meeting-list')?></label>
 			<div id="map">
@@ -167,7 +170,7 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
 		</div>
 		<?php }?>
 		<div class="meta_form_row">
-			<label><?php _e('Notes', '12-step-meeting-list')?></label>
+			<label><?php _e('Location Notes', '12-step-meeting-list')?></label>
 			<textarea name="location_notes" placeholder="<?php _e('eg. Around back, basement, ring buzzer', '12-step-meeting-list')?>"><?php if (!empty($location->post_content)) {
             echo $location->post_content;
         }
@@ -242,8 +245,8 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
 				<input type="text" name="website" id="website" value="<?php echo @$meeting->website ?>" placeholder="https://">
 			</div>
 			<div class="meta_form_row">
-				<label for="website_2"><?php _e('Website 2', '12-step-meeting-list')?></label>
-				<input type="text" name="website_2" id="website_2" value="<?php echo @$meeting->website_2 ?>" placeholder="https://">
+				<label for="primary_language"><?php _e('Primary Language', '12-step-meeting-list')?></label>
+				<input type="text" name="primary_language" id="primary_language" value="<?php echo @$meeting->primary_language ?>">
 			</div>
 			<div class="meta_form_row">
 				<label for="email"><?php _e('Email', '12-step-meeting-list')?></label>
@@ -281,7 +284,7 @@ foreach ($tsml_programs[$tsml_program]['types'] as $key => $type) {?>
 				</div>
 			</div>
 			<div class="meta_form_row">
-				<label for="last_contact"><?php _e('Last Contact', '12-step-meeting-list')?></label>
+				<label for="last_contact"><?php _e('Master<br>Last Contact', '12-step-meeting-list')?></label>
 				<input type="date" name="last_contact" value="<?php echo @$meeting->last_contact ?>">
 			</div>
 		</div>

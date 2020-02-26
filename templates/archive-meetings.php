@@ -9,10 +9,11 @@ $modes = array(
     'location' => array('title' => __('Near Location', '12-step-meeting-list'), 'icon' => 'glyphicon glyphicon-map-marker'),
 );
 //proximity only enabled over SSL
+// Disabled JDF 2020-01-23
 if (is_ssl()) {
     $modes['me'] = array('title' => __('Near Me', '12-step-meeting-list'), 'icon' => 'glyphicon glyphicon-user');
 }
-
+//* *//
 //define distance dropdown
 $distances = array();
 foreach (array(1, 2, 5, 10, 25, 50, 100) as $distance) {
@@ -205,13 +206,16 @@ add_filter('wp_title', 'tsml_set_title', 10, 2);
 //need these later
 $meetings = $locations = array();
 $message = '';
-
+$first_search_landing = true;
 //run query
 if ($mode == 'search') {
     $type = implode(',', $types);
-    $meetings = tsml_get_meetings(compact('mode', 'day', 'time', 'region', 'district', 'type', 'query'));
+    
+	if (!isset($_GET['first-call'])) {
+  		$meetings = tsml_get_meetings(compact('mode', 'day', 'time', 'region', 'district', 'type', 'query'));
+  	}
     if (!count($meetings)) {
-        $message = $tsml_strings['no_meetings'];
+        $message = $tsml_strings['first_search'];
     }
 
 } elseif ($mode == 'location') {
@@ -304,7 +308,7 @@ get_header();
 ?>
 <div id="tsml">
 
-	<div id="meetings" data-view="<?php echo $view ?>" data-mode="<?php echo $mode ?>" tax-mode="<?php echo $district ? 'district' : 'region' ?>" class="container<?php if (!count($meetings)) {?> empty<?php }?>" role="main">
+	<div id="meetings" data-view="<?php echo $view ?>" data-mode="<?php echo $mode ?>" tax-mode="<?php echo $district ? 'district' : 'region' ?>" class="<?php if (!count($meetings)) {?> empty<?php }?>" role="main">
 
 		<div class="row title">
 			<div class="col-xs-12">
@@ -324,7 +328,7 @@ get_header();
 			<div class="col-sm-6 col-md-2 control-search">
 				<form id="search" role="search" action=".">
 					<div class="input-group">
-						<input type="search" name="query" class="form-control" value="<?php echo $query ?>" placeholder="<?php echo $mode_label ?>" aria-label="Search" <?php echo ($mode == 'me') ? 'disabled' : '' ?>>
+						<input type="search" name="query" class="form-control da-master-search-trigger" value="<?php echo $query ?>" placeholder="<?php echo $mode_label ?>" aria-label="Search" <?php echo ($mode == 'me') ? 'disabled' : '' ?>>
 						<div class="input-group-btn" id="mode">
 							<button class="btn btn-default" data-toggle="tsml-dropdown" type="button">
 								<i class="<?php echo $modes[$mode]['icon'] ?>"></i>
@@ -332,10 +336,9 @@ get_header();
 							</button>
 							<ul class="dropdown-menu dropdown-menu-right">
 								<?php foreach ($modes as $key => $value) {?>
-								<li class="<?php echo $key;if ($mode == $key) {
-    echo ' active';
-}
-    ?>"><a data-id="<?php echo $key ?>"><?php echo $value['title'] ?></a></li>
+								<li class="<?php echo $key;if ($mode == $key) {echo ' active';} ?>">
+									<a data-id="<?php echo $key ?>"><?php echo $value['title'] ?></a>
+								</li>
 								<?php }?>
 							</ul>
 						</div>
@@ -363,10 +366,9 @@ get_header();
 						<span class="caret"></span>
 					</a>
 					<ul class="dropdown-menu" role="menu">
-						<li<?php if (empty($region) && empty($district)) {
-    echo ' class="active"';
-}
-    ?>><a><?php echo $region_default ?></a></li>
+						<li<?php if (empty($region) && empty($district)) {echo ' class="active"';} ?>>
+						<a><?php echo $region_default ?></a>
+						</li>
 						<li class="divider"></li>
 						<?php if ($regions_dropdown && $districts_dropdown) {?>
 						<li class="region"><a class="switch"><?php _e('Switch to Districts', '12-step-meeting-list')?></a></li>
@@ -385,9 +387,10 @@ get_header();
 					</a>
 					<ul class="dropdown-menu" role="menu">
 						<?php
-foreach ($distances as $key => $value) {
-    echo '<li' . ($key == $distance ? ' class="active"' : '') . '><a href="' . tmsl_meetings_url(array('tsml-distance' => $key)) . '" data-id="' . $key . '">' . $value . '</a></li>';
-}?>
+						foreach ($distances as $key => $value) {
+   							 echo '<li' . ($key == $distance ? ' class="active"' : ' class="da-master-search-trigger"') . '><a href="' . tmsl_meetings_url(array('tsml-distance' => $key)) . '" data-id="' . $key . '">' . $value . '</a></li>';
+						}
+						?>
 					</ul>
 				</div>
 			</div>
@@ -397,17 +400,15 @@ foreach ($distances as $key => $value) {
 						<span class="selected"><?php echo $day_label ?></span>
 						<span class="caret"></span>
 					</a>
-					<ul class="dropdown-menu" role="menu">
-						<li<?php if ($day === null) {
-    echo ' class="active"';
-}
-?>><a><?php echo $day_default ?></a></li>
+					<ul class="dropdown-menu" role="menu" id="day-selector-override">
+						<li<?php if ($day === null) {echo ' class="active"';} ?>>
+						<a><?php echo $day_default ?></a>
+						</li>
 						<li class="divider"></li>
 						<?php foreach ($tsml_days as $key => $value) {?>
-						<li<?php if (intval($key) === $day) {
-    echo ' class="active"';
-}
-    ?>><a href="<?php echo tmsl_meetings_url(array('tsml-day' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $value ?></a></li>
+						<li<?php if (intval($key) === $day) {echo ' class="active"';} ?>>
+						<a href="<?php echo tmsl_meetings_url(array('tsml-day' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $value ?></a>
+						</li>
 						<?php }?>
 					</ul>
 				</div>
@@ -419,21 +420,18 @@ foreach ($distances as $key => $value) {
 						<span class="caret"></span>
 					</a>
 					<ul class="dropdown-menu" role="menu">
-						<li<?php if (empty($time)) {
-    echo ' class="active"';
-}
-?>><a><?php echo $time_default ?></a></li>
+						<li<?php if (empty($time)) {echo ' class="active"';} ?>>
+						<a><?php echo $time_default ?></a>
+						</li>
 						<li class="divider upcoming"></li>
-						<li class="upcoming<?php if ($time == 'upcoming') {
-    echo ' active"';
-}
-?>"><a href="<?php echo tmsl_meetings_url(array('tsml-time' => 'upcoming')) ?>" data-id="upcoming"><?php esc_html_e('Upcoming', '12-step-meeting-list')?></a></li>
+						<li class="upcoming<?php if ($time == 'upcoming') {echo ' active"';} ?>">
+						<a href="<?php echo tmsl_meetings_url(array('tsml-time' => 'upcoming')) ?>" data-id="upcoming"><?php esc_html_e('Upcoming', '12-step-meeting-list')?></a>
+						</li>
 						<li class="divider"></li>
 						<?php foreach ($times as $key => $value) {?>
-						<li<?php if ($key === $time) {
-    echo ' class="active"';
-}
-    ?>><a href="<?php echo tmsl_meetings_url(array('tsml-time' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $value ?></a></li>
+						<li<?php if ($key === $time) {echo ' class="active"';} ?>>
+						<a href="<?php echo tmsl_meetings_url(array('tsml-time' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $value ?></a>
+						</li>
 						<?php }?>
 					</ul>
 				</div>
@@ -446,18 +444,16 @@ foreach ($distances as $key => $value) {
 						<span class="caret"></span>
 					</a>
 					<ul class="dropdown-menu" role="menu">
-						<li<?php if (!count($types)) {
-    echo ' class="active"';
-}
-    ?>><a><?php echo $type_default ?></a></li>
+						<li<?php if (!count($types)) {echo ' class="active"';} ?>>
+						<a><?php echo $type_default ?></a>
+						</li>
 						<li class="divider"></li>
 						<?php
-$types_to_list = array_intersect_key($tsml_programs[$tsml_program]['types'], array_flip($tsml_types_in_use));
-    foreach ($types_to_list as $key => $thistype) {?>
-						<li<?php if (in_array($key, $types)) {
-        echo ' class="active"';
-    }
-        ?>><a href="<?php echo tmsl_meetings_url(array('tsml-type' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $thistype ?></a></li>
+						$types_to_list = array_intersect_key($tsml_programs[$tsml_program]['types'], array_flip($tsml_types_in_use));
+    					foreach ($types_to_list as $key => $thistype) {?>
+						<li<?php if (in_array($key, $types)) {echo ' class="active"';} ?>>
+						<a href="<?php echo tmsl_meetings_url(array('tsml-type' => $key)) ?>" data-id="<?php echo $key ?>"><?php echo $thistype ?></a>
+						</li>
 						<?php }?>
 					</ul>
 				</div>
@@ -467,114 +463,195 @@ $types_to_list = array_intersect_key($tsml_programs[$tsml_program]['types'], arr
 		<div class="row results">
 			<div class="col-xs-12">
 				<div id="alert" class="alert alert-warning<?php if (empty($message)) {?> hidden<?php }?>">
-					<?php echo $message ?>
+					<?php 
+					
+					if ($first_search_landing) {
+						echo '<h3>' . $message . '</h3>';
+					} else {
+						echo $message;
+					}
+					
+					?>
 				</div>
 
 				<div id="map"></div>
 
-				<div id="table-wrapper">
+				<div id="">
 					<table class="table table-striped">
 						<thead class="hidden-print">
 							<tr>
-								<?php foreach ($tsml_columns as $key => $column) {
-    echo '<th class="' . $key . '"' . ($tsml_sort_by == $key ? ' data-sort="asc"' : '') . '>' . __($column, '12-step-meeting-list') . '</th>';
-}?>
+							<?php 
+							foreach ($tsml_columns as $key => $column) {
+    							echo '<th class="' . $key . '"' . ($tsml_sort_by == $key ? ' data-sort="asc"' : '') . '>' . __($column, '12-step-meeting-list') . '</th>';
+							}
+							?>
 							</tr>
 						</thead>
 						<tbody id="meetings_tbody">
-							<?php
-foreach ($meetings as $meeting) {
-    $meeting['name'] = htmlentities(@$meeting['name'], ENT_QUOTES);
-    $meeting['location'] = htmlentities(@$meeting['location'], ENT_QUOTES);
-    $meeting['formatted_address'] = htmlentities(@$meeting['formatted_address'], ENT_QUOTES);
-    $meeting['region'] = (!empty($meeting['sub_region'])) ? htmlentities($meeting['sub_region'], ENT_QUOTES) : htmlentities(@$meeting['region'], ENT_QUOTES);
-    if (!empty($meeting['district'])) {
-        $meeting['district'] = (!empty($meeting['sub_district'])) ? htmlentities($meeting['sub_district'], ENT_QUOTES) : htmlentities(@$meeting['district'], ENT_QUOTES);
-    } else {
-        $meeting['district'] = '';
-    }
-    if (!isset($meeting['types'])) {
-        $meeting['types'] = array();
-    }
+						<?php
+						foreach ($meetings as $meeting) {
 
-    $meeting['link'] = tsml_link($meeting['url'], tsml_format_name($meeting['name'], $meeting['types']), 'post_type');
+							$meeting['name'] = htmlentities(@$meeting['name'], ENT_QUOTES);
+	
+	
+							if ($meeting['physical_location'] == 'N' ) {
+	
+								if (in_array('TE', $meeting['types'])) {
+		
+									$meeting['location'] = "Telephone";
+									$meeting['formatted_address'] = "";
+									$meeting['region'] = "";
+									$meeting['district'] = "";
+		
+								}
+		
+								if (in_array('NET', $meeting['types'])) {
+		
+									$meeting['location'] = "Internet";
+									$meeting['formatted_address'] = "";
+									$meeting['region'] = "";
+									$meeting['district'] = "";
+		
+								}
 
-    if (!isset($locations[$meeting['location_id']])) {
-        $locations[$meeting['location_id']] = array(
-            'name' => $meeting['location'],
-            'latitude' => $meeting['latitude'] - 0,
-            'longitude' => $meeting['longitude'] - 0,
-            'url' => $meeting['location_url'], //can't use link here, unfortunately
-            'formatted_address' => $meeting['formatted_address'],
-            'meetings' => array(),
-        );
-    }
+								if (in_array('SK', $meeting['types'])) {
+		
+									$meeting['location'] = "Skype";
+									$meeting['formatted_address'] = "";
+									$meeting['region'] = "";
+									$meeting['district'] = "";
+		
+								}
 
-    $locations[$meeting['location_id']]['meetings'][] = array(
-        'time' => $meeting['time_formatted'],
-        'day' => @$meeting['day'],
-        'name' => $meeting['name'],
-        'url' => $meeting['url'], //can't use link here, unfortunately
-        'types' => $meeting['types'],
-    );
+								if (in_array('HY', $meeting['types'])) {
+		
+									$meeting['location'] = "Hybrid";
+									$meeting['formatted_address'] = "";
+									$meeting['region'] = "";
+									$meeting['district'] = "";
+		
+								}
+		
+							} else {
+	
+								$meeting['location'] = htmlentities(@$meeting['location'], ENT_QUOTES);
+								$meeting['formatted_address'] = htmlentities(@$meeting['formatted_address'], ENT_QUOTES);
+								$meeting['region'] = (!empty($meeting['sub_region'])) ? htmlentities($meeting['sub_region'], ENT_QUOTES) : htmlentities(@$meeting['region'], ENT_QUOTES);
+								if (!empty($meeting['district'])) {
+									$meeting['district'] = (!empty($meeting['sub_district'])) ? htmlentities($meeting['sub_district'], ENT_QUOTES) : htmlentities(@$meeting['district'], ENT_QUOTES);
+								} else {
+									$meeting['district'] = '';
+								}
+	
+							}
 
-    $sort_time = @$meeting['day'] . '-' . (@$meeting['time'] == '00:00' ? '23:59' : @$meeting['time']);
-    ?>
+							if (!isset($meeting['types'])) {
+								$meeting['types'] = array();
+							}
+
+
+						//    $meeting['link'] = tsml_link($meeting['url'], tsml_format_name($meeting['name'], $meeting['types']) . '&nbsp;(' . $meeting['group_number'] . ')', 'post_type');
+							$meeting['link'] = tsml_link($meeting['url'], tsml_format_name($meeting['name'], $meeting['types']), 'post_type');
+
+							if (!isset($locations[$meeting['location_id']])) {
+								$locations[$meeting['location_id']] = array(
+									'name' => $meeting['location'],
+									'latitude' => $meeting['latitude'] - 0,
+									'longitude' => $meeting['longitude'] - 0,
+									'url' => $meeting['location_url'], //can't use link here, unfortunately
+									'formatted_address' => $meeting['formatted_address'],
+									'meetings' => array(),
+								);
+							}
+
+							$locations[$meeting['location_id']]['meetings'][] = array(
+								'time' => $meeting['time_formatted'],
+								'day' => @$meeting['day'],
+								'name' => $meeting['name'],
+								'url' => $meeting['url'], //can't use link here, unfortunately
+								'types' => $meeting['types'],
+							);
+
+							$sort_time = @$meeting['day'] . '-' . (@$meeting['time'] == '00:00' ? '23:59' : @$meeting['time']);
+							?>
 							<tr <?php if (!empty($meeting['notes'])) {?> class="notes"<?php }?>>
-								<?php foreach ($tsml_columns as $key => $column) {
-        switch ($key) {
-            case 'time': ?>
-									<td class="time" data-sort="<?php echo $sort_time . '-' . sanitize_title($meeting['location']) ?>"><span><?php
-if (($day === null) && !empty($meeting['time'])) {
-                    echo tsml_format_day_and_time($meeting['day'], $meeting['time'], '</span><span>');
-                } else {
-                    echo $meeting['time_formatted'];
-                }
-                ?></span></td>
-									<?php
-break;
 
-            case 'distance': ?>
-									<td class="distance" data-sort="<?php echo $meeting['distance'] ?>"><?php echo $meeting['distance'] ?></td>
-									<?php
-break;
+							<?php 
+							
+							foreach ($tsml_columns as $key => $column) {
 
-            case 'name': ?>
-									<td class="name" data-sort="<?php echo sanitize_title($meeting['name']) . '-' . $sort_time ?>">
-										<?php echo $meeting['link'] ?>
-									</td>
-									<?php
-break;
+								switch ($key) {
+									case 'time': ?>
+												<td class="time" data-sort="<?php echo $sort_time . '-' . sanitize_title($meeting['location']) ?>"><span><?php
 
-            case 'location': ?>
-									<td class="location" data-sort="<?php echo sanitize_title($meeting['location']) . '-' . $sort_time ?>">
-										<?php echo $meeting['location'] ?>
-									</td>
-									<?php
-break;
+									//print "DAY: " . $day;
+								//		if (($day === null) && !empty($meeting['time'])) {
+										if (!empty($meeting['time'])) {
+		
+											if ($meeting['time'] == "00:00:00" || $meeting['time'] == "00:00") {
+												echo "See notes";
+											} else {
+												echo tsml_format_day_and_time($meeting['day'], $meeting['time'], '</span><span>');
+			
+											}
+			
+											if ($meeting['tz_code'] != '') {
+												echo '<br><span style="font-size:.8em;">' . $meeting['tz_description'] . '</span>';
+											}
+					 
+											} else {
+												 //   echo "$meeting['time_formatted']";
+				 
+												 //** DA-MASTER: THIS WOULD DISPLAY 'Appointment'. Quick fix to display 'See meeting detail' instead.
+													echo "See notes";
+												//** /DA-MASTER
+											}
+											?>
+											</span></td>
+										<?php
+								break;
 
-            case 'address': ?>
-									<td class="address" data-sort="<?php echo sanitize_title($meeting['formatted_address']) . '-' . $sort_time ?>"><?php echo tsml_format_address($meeting['formatted_address'], $tsml_street_only) ?></td>
-									<?php
-break;
+								case 'distance': ?>
+										<td class="distance" data-sort="<?php echo $meeting['distance'] ?>"><?php echo $meeting['distance'] ?></td>
+										<?php
+								break;
 
-            case 'region': ?>
-									<td class="region" data-sort="<?php echo sanitize_title($meeting['region']) . '-' . $sort_time ?>"><?php echo $meeting['region'] ?></td>
-									<?php
-break;
+								case 'name': ?>
+										<td class="name" data-sort="<?php echo sanitize_title($meeting['name']) . '-' . $sort_time ?>">
+											<?php echo $meeting['link'] ?>
+										</td>
+										<?php
+								break;
 
-            case 'district': ?>
-									<td class="district" data-sort="<?php echo sanitize_title($meeting['district']) . '-' . $sort_time ?>"><?php echo $meeting['district'] ?></td>
-									<?php
-break;
+								case 'location': ?>
+										<td class="location" data-sort="<?php echo sanitize_title($meeting['location']) . '-' . $sort_time ?>">
+											<?php echo $meeting['location'] ?>
+										</td>
+										<?php
+								break;
 
-            case 'types': ?>
-									<td class="types" data-sort="<?php echo sanitize_title(tsml_meeting_types($meeting['types'])) . '-' . $sort_time ?>"><?php echo tsml_meeting_types($meeting['types']) ?></td>
-									<?php
-break;
-        }
-    }
-    ?>
+								case 'address': ?>
+										<td class="address" data-sort="<?php echo sanitize_title($meeting['formatted_address']) . '-' . $sort_time ?>"><?php echo tsml_format_address($meeting['formatted_address'], $tsml_street_only) ?></td>
+										<?php
+								break;
+
+								case 'region': ?>
+										<td class="region" data-sort="<?php echo sanitize_title($meeting['region']) . '-' . $sort_time ?>"><?php echo $meeting['region'] ?></td>
+										<?php
+								break;
+
+								case 'district': ?>
+										<td class="district" data-sort="<?php echo sanitize_title($meeting['district']) . '-' . $sort_time ?>"><?php echo $meeting['district'] ?></td>
+										<?php
+								break;
+
+								case 'types': ?>
+										<td class="types" data-sort="<?php echo sanitize_title(tsml_meeting_types($meeting['types'])) . '-' . $sort_time ?>"><?php echo tsml_meeting_types($meeting['types']) ?></td>
+										<?php
+								break;
+										}
+								}
+    						?>
 							</tr>
 							<?php }?>
 						</tbody>

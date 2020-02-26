@@ -1,13 +1,200 @@
 <?php
-	
-//import CSV file and handle settings
+
 function tmsl_import_page() {
 	global $wpdb, $tsml_data_sources, $tsml_programs, $tsml_program, $tsml_nonce, $tsml_days, $tsml_feedback_addresses, 
 	$tsml_notification_addresses, $tsml_distance_units, $tsml_sharing, $tsml_sharing_keys, $tsml_contact_display,
 	$tsml_google_maps_key, $tsml_mapbox_key;
 
 	$error = false;
+		//	delete_option('tsml_import_buffer');
 	
+	
+//* DA_MASTER: 2020-12-01 **//
+//* PULL FROM A MASTER DATABASE EXTERNAL TO THE WORDPRESS SITE.
+//* 1. DELETE ALL EXISTING MEETINGS, IT'S A BULK REPLACE
+//* 2. FIELDS ARE PROPERLY NAMED WITH NO SPACES, UNLIKE CSV FILE
+//* 3. TYPES ARE NOT LONG DESCRIPTION. THEY ARE ABBREVIATIONS A LA
+//*    VALUES IN variables.php. MASTER DATABASE USES ABBREVS, JUST
+//*    USE THEM AS IS.
+//* 4. FIELDS THAT DON'T EXIST IN ORGINAL PLUG-IN ARE IMPORTED HERE
+//*    FOR CUSTOM USAGE.
+
+	if ($_POST["action"] == "DBPULL" && isset($_POST['tsml_nonce']) && wp_verify_nonce($_POST['tsml_nonce'], $tsml_nonce)) {
+
+		delete_option('tsml_import_buffer');
+
+		tsml_delete('everything');
+
+		$masterdb = new wpdb('db7131_master','CutaLion1','db7131_master','linear-general-purpose-db.cxg6mayxdmnq.us-east-2.rds.amazonaws.com');
+
+		$sql = 	"select master_id, time, end_time, `day`, `name`, location, address, region, ".
+				"sub_region, types, notes, location_notes, location_notes as meeting_location_notes, `group`, website, email, ".
+				"phone, group_notes, state, country, zip, contact_2_name, contact_2_email, ".
+				"contact_2_phone, contact_3_name, contact_3_email, contact_3_phone, last_contact, ".
+				"website_2, primary_language, physical_location, group_number, special_contact_label, special_contact, G.tz_code, tz_description ".
+				"from groups G left join timezones T on G.tz_code = T.tz_code ".
+				"where status = 'Active' ";
+				//"from Meetings where status = 'Active' ".
+				//"and types like '%NET%' or types like '%TE%' ";
+				//"and region like '%New York%' or sub_region like '%New York%' ";
+				//"limit 10 ";
+				//"and master_id=197";
+		$rows = $masterdb->get_results($sql);
+
+		//result of query is stdObject. Convert to vanilla array
+		$new_array = objectToArray($rows);
+
+		foreach ($new_array as $data) {
+
+			$meetings[] = $data;
+
+		};
+		
+		//* DA_MASTER: NOTIFY USER TO WAIT WHILE IMPORT HAPPENS
+		print '<h4>STEP 1: PULLED MASTER DATABASE</h4>';
+		print '<h4>STEP 2: PROCESSING MEETINGS. THIS WILL TAKE A FEW MINUTES.<br>WHEN THE PROGRESS BAR REACHES 100%, PROCESSING IS COMPLETE.</h4>';
+		print '<h4 style="color:red;">CAUTION: DO NOT CLOSE THIS WINDOW UNTIL IMPORT IS COMPLETE</h4>';
+
+		//* DA_MASTER COPIED IMPORT CODE BELOW INTO THIS FUNCTION.
+		//* THIS WAY WE CAN CUISINART THE CODE WITHOUT DISTURBING THE ORIGINAL.
+		process_db_meetings($meetings); 
+
+
+	} 
+
+	//*DA_MASTER: replace individual meeting from master db
+	
+	if ($_POST["action"] == "SINGLEUPDATE" && isset($_POST['tsml_nonce']) && wp_verify_nonce($_POST['tsml_nonce'], $tsml_nonce)) {
+
+		if ($_POST["master_id"] == "") {
+		
+			$error = __('Please specify a Master ID from Admin', '12-step-meeting-list');
+
+		
+		};
+		
+		$results = $wpdb->get_results( "select post_id from dbswp_postmeta where meta_key = 'master_id' and meta_value='" . $_POST["master_id"] . "'");
+		
+		//print_r($results);
+		foreach($results as $post) {
+
+			print_r($post);
+			print "DELETE TARGET POST_ID: " . $post->post_id . '<Br>';
+			
+			$post_id = $post->post_id;
+
+		}
+
+/* DB_MASTER: PROBABLY DON'T NEED THIS. USING FOR OTHER DB QUERIES IN DEV. LEAVE IT FOR NOW */
+		$results = $wpdb->get_results( "select post_parent from dbswp_posts where ID='" . $post_id . "'");
+		
+		//print_r($results);
+		foreach($results as $post) {
+
+			print_r($post);
+			//print "VAL: " . $post->post_parent .'<Br>';
+			
+			$post_parent = $post->post_parent;
+
+		}
+/**/
+		
+		
+		$postID = Array($post_id);
+ 		tsml_delete($postID);	
+		delete_option('tsml_import_buffer');
+
+		$masterdb = new wpdb('db7131_master','CutaLion1','db7131_master','linear-general-purpose-db.cxg6mayxdmnq.us-east-2.rds.amazonaws.com');
+
+		$sql = 	"select master_id, time, end_time, `day`, `name`, location, address, region, ".
+				"sub_region, types, notes, location_notes, location_notes as meeting_location_notes, `group`, website, email, ".
+				"phone, group_notes, state, country, zip, contact_2_name, contact_2_email, ".
+				"contact_2_phone, contact_3_name, contact_3_email, contact_3_phone, last_contact, ".
+				"website_2, primary_language, physical_location, group_number, special_contact_label, special_contact, G.tz_code, tz_description ".
+				"from groups G left join timezones T on G.tz_code = T.tz_code ".
+				"where status = 'Active' ".
+				"and master_id='" . $_POST["master_id"] . "'";
+		$rows = $masterdb->get_results($sql);
+
+		if ($masterdb->num_rows == 0) {
+		
+			$error = __('Master ID not valid', '12-step-meeting-list');
+
+		} else {
+			//result of query is stdObject. Convert to vanilla array
+			$new_array = objectToArray($rows);
+
+			//print_r($new_array);
+			foreach ($new_array as $data) {
+
+				$meetings[] = $data;
+
+			};
+			print '<h4>STEP 1: PULLED MEETING FROM MASTER DATABASE</h4>';
+			print '<h4>STEP 2: PROCESSING MEETING.</h4>';
+			print '<h4 style="color:red;">CAUTION: DO NOT CLOSE THIS WINDOW UNTIL IMPORT IS COMPLETE</h4>';
+
+
+			process_db_meetings($meetings);
+
+		}
+	} 
+
+	//delete individual meeting from master
+	
+	if ($_POST["action"] == "SINGLEDELETE" && isset($_POST['tsml_nonce']) && wp_verify_nonce($_POST['tsml_nonce'], $tsml_nonce)) {
+
+		if ($_POST["master_id"] == "") {
+		
+			$error = __('Please specify a Master ID from Admin', '12-step-meeting-list');
+
+		
+		};
+		
+		$results = $wpdb->get_results( "select post_id from dbswp_postmeta where meta_key = 'master_id' and meta_value='" . $_POST["master_id"] . "'");
+		
+		//print_r($results);
+		foreach($results as $post) {
+
+			print_r($post);
+			print "DELETE TARGET POST_ID: " . $post->post_id . '<Br>';
+			
+			$post_id = $post->post_id;
+
+		}
+
+/* DB_MASTER: PROBABLY DON'T NEED THIS. USING FOR OTHER DB QUERIES IN DEV. LEAVE IT FOR NOW */
+		$results = $wpdb->get_results( "select post_parent from dbswp_posts where ID='" . $post_id . "'");
+		
+		//print_r($results);
+		foreach($results as $post) {
+
+			print_r($post);
+			
+			$post_parent = $post->post_parent;
+
+		}
+/**/
+		
+		
+		$postID = Array($post_id);
+ 		tsml_delete($postID);	
+
+		delete_option('tsml_import_buffer');
+
+		print '<h4>MEEING DELETED.</h4>';
+
+	} 
+
+
+//* DA-MASTER 2020-12-01 **//
+//* FROM HERE DOWN UNALTERED (MOSTLY...).
+//* ORIGINAL INGESTION FROM CSV FILE HERE. UNALTERED, NOT MEANT
+//* TO BE USED. IF IT IS, CSV STILL IMPORT, BUT MISSING FIELDS
+//* THAT ARE USED IN VARIOUS CUSTOMIZED PLACES
+
+	//import CSV file and handle settings
+
 	//if posting a CSV, check for errors and add it to the import buffer
 	if (isset($_FILES['tsml_import']) && isset($_POST['tsml_nonce']) && wp_verify_nonce($_POST['tsml_nonce'], $tsml_nonce)) {
 		ini_set('auto_detect_line_endings', 1); //to handle mac \r line endings
@@ -38,7 +225,7 @@ function tmsl_import_page() {
 		} elseif (!$handle = fopen($_FILES['tsml_import']['tmp_name'], 'r')) {
 			$error = __('Error opening CSV file', '12-step-meeting-list');
 		} else {
-			
+		
 			//extract meetings from CSV
 			while (($data = fgetcsv($handle, 3000, ',')) !== false) {
 				//skip empty rows
@@ -55,6 +242,10 @@ function tmsl_import_page() {
 				$error = __('Nothing was imported because no data rows were found.', '12-step-meeting-list');
 			} else {
 
+	print "<h4>STEP 1: IMPORT CSV RECORDS</h4>";
+	print "<h4>STEP 2: PROCESSING MEETINGS. THIS WILL TAKE A FEW MINUTES.<br>WHEN THE PROGRESS BAR REACHES 100%, PROCESSING IS COMPLETE.</h4>";
+	print '<h4 style="color:red;">CAUTION: DO NOT CLOSE THIS WINDOW UNTIL IMPORT IS COMPLETE</h4>';
+
 				//allow theme-defined function to reformat CSV prior to import (New Hampshire, Ventura)
 				if (function_exists('tsml_import_reformat')) {
 					$meetings = tsml_import_reformat($meetings);
@@ -68,12 +259,12 @@ function tmsl_import_page() {
 				$header = array_map('sanitize_title_with_dashes', $header);
 				$header = str_replace('-', '_', $header);
 				$header_count = count($header);
-				
+			
 				//check header for required fields
 				if (!in_array('address', $header) && !in_array('city', $header)) {
 					$error = __('Either Address or City is required.', '12-step-meeting-list');
 				} else {
-					
+				
 					//loop through data and convert to array
 					foreach ($meetings as &$meeting) {
 						//check length
@@ -82,23 +273,23 @@ function tmsl_import_page() {
 						} elseif ($header_count < count($meeting)) {
 							$meeting = array_slice($meeting, 0, $header_count);
 						}
-						
+					
 						//associate
 						$meeting = array_combine($header, $meeting);
 					}
-					
+				
 					//import into buffer, also done this way in data source import
 					tsml_import_buffer_set($meetings);
-					
+				
 					//run deletes
 					if ($_POST['delete'] == 'regions') {
-						
+					
 						//get all regions present in array
 						$regions = array();
 						foreach ($meetings as $meeting) {
 							$regions[] = empty($meeting['sub_region']) ? $meeting['region'] : $meeting['sub_region'];
 						}
-						
+					
 						//get locations for those meetings
 						$location_ids = get_posts(array(
 							'post_type'			=> 'tsml_location',
@@ -112,7 +303,7 @@ function tmsl_import_page() {
 								),
 							),
 						));
-						
+					
 						//get posts for those meetings
 						$meeting_ids = get_posts(array(
 							'post_type'			=> 'tsml_meeting',
@@ -122,11 +313,11 @@ function tmsl_import_page() {
 						));
 
 						tsml_delete($meeting_ids);
-						
-						tsml_delete_orphans();
 					
+						tsml_delete_orphans();
+				
 					} elseif ($_POST['delete'] == 'no_data_source') {
-						
+					
 						tsml_delete(get_posts(array(
 							'post_type'		=> 'tsml_meeting',
 							'numberposts'	=> -1,
@@ -141,17 +332,17 @@ function tmsl_import_page() {
 						)));
 
 						tsml_delete_orphans();
-						
+					
 					} elseif ($_POST['delete'] == 'all') {
-						
+					
 						tsml_delete('everything');
-						
+					
 					}
 				}
 			}
 		}
 	}
-		
+	
 	//add data source
 	if (!empty($_POST['tsml_add_data_source']) && isset($_POST['tsml_nonce']) && wp_verify_nonce($_POST['tsml_nonce'], $tsml_nonce)) {
 		
@@ -221,10 +412,10 @@ function tmsl_import_page() {
 			
 		}
 	}
-	
+
 	//check for existing import buffer
-	$meetings = get_option('tsml_import_buffer', array());
 	
+	$meetings = get_option('tsml_import_buffer', array());
 	//remove data source
 	if (!empty($_POST['tsml_remove_data_source'])) {
 
@@ -433,63 +624,60 @@ function tmsl_import_page() {
 					</div>
 					<ol id="tsml_import_errors" class="error inline hidden"></ol>
 					<?php }?>
-
-					<?php if (empty($tsml_mapbox_key) && empty($tsml_google_maps_key)) {?>
-					<div class="notice notice-warning inline" style="margin: 1px 0 22px;">
-						<div class="inside">
-							<h3>Enable Maps on Your Site</h3>
-							<p>Formerly, this plugin came with Google Maps built in, but, due to a change in Google's pricing, that's no 
-								longer possible. Read <a href="https://meetingguide.org/google-api" target="_blank">more 
-								about the price increase here</a>.</p>
-							<p>Now if you want to enable maps on your site you have two options: <strong>Mapbox</strong> or <strong>Google</strong>. 
-								They are both good options! In all likelihood neither one will charge you money. Mapbox gives 
-								<a href="https://www.mapbox.com/pricing/" target="_blank">50,000 free map views</a> / month, Google gives 
-								<a href="https://cloud.google.com/maps-platform/pricing/" target="_blank">28,500 free views</a>. 
-								That's a lot of traffic!
-							</p>
-							<p>To sign up for Mapbox <a href="https://www.mapbox.com/signup/" target="_blank">go here</a>. You will only need
-								a valid email address, no credit card required. Copy your access token and paste it below:</p>
-							<form class="columns" method="post" action="<?php echo $_SERVER['REQUEST_URI']?>" style="margin:15px -5px 22px;">
-								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
-								<div class="input">
-									<input type="text" name="tsml_add_mapbox_key" placeholder="Enter Mapbox access token here">
-								</div>
-								<div class="btn">
-									<input type="submit" class="button" value="<?php _e('Add', '12-step-meeting-list')?>">
-								</div>
-							</form>
-
-							<p>Alternatively you may still use Google. Their interface is slightly more complex, because they offer more
-							services. <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank">Go here</a> 
-							to get a key from Google. The process should only take a few minutes, although you will have to enter a 
-							credit card. 							
-							<a href="https://theeventscalendar.com/knowledgebase/setting-up-your-google-maps-api-key/" target="_blank">Here 
-							are some instructions</a>.</p>
-
-							<p>Be sure to:<br>
-								<span class="dashicons dashicons-yes"></span> Enable the Google Maps Javascript API<br>
-								<span class="dashicons dashicons-yes"></span> Secure your credentials by adding your website URL to the list
-								of allowed referrers</p>
-
-							<p>Once you're done, paste your new key below.</p>
-
-							<form class="columns" method="post" action="<?php echo $_SERVER['REQUEST_URI']?>" style="margin:15px -5px 22px;">
-								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
-								<div class="input">
-									<input type="text" name="tsml_add_google_maps_key" placeholder="Enter Google API key here">
-								</div>
-								<div class="btn">
-									<input type="submit" class="button" value="<?php _e('Add', '12-step-meeting-list')?>">
-								</div>
-							</form>
-
-						</div>
-					</div>
-					<?php }?>
-					
+<!-- 
+LD_MASTER: OPTIONS HERE TO DO A FULL IMPORT FROM MASTER DATABASE, UPDATE ONE OR DELETE ONE
+--->
 					<div class="postbox">
 						<div class="inside">
-							<h3><?php _e('Import CSV', '12-step-meeting-list')?></h3>
+							<h3 style="margin-bottom:8px;"><?php _e('Fresh pull from the master database', '12-step-meeting-list')?></h3>
+							<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
+								<input type="hidden" name="action" value="DBPULL">
+								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
+								<p style="margin-top:0;">
+									<?php _e('This option will delete all meetings and replace them with fresh data.', '12-step-meeting-list')?><br>
+								</p>
+								<p><input type="submit" class="button button-primary" value="<?php _e('Begin database pull', '12-step-meeting-list')?>"></p>
+							</form>
+						</div>
+					</div>
+				
+					<div class="postbox">
+						<div class="inside">
+							<h3 style="margin-bottom:8px;"><?php _e('Update single meeting', '12-step-meeting-list')?></h3>
+							<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
+								<input type="hidden" name="action" value="SINGLEUPDATE">
+								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
+								<p style="margin-top:0;">
+									<?php _e('Update a meeting.', '12-step-meeting-list')?><br>
+								</p>
+								<p><input type="number" name="master_id" value=""></p>
+								<p><input type="submit" class="button button-primary" value="<?php _e('Begin meeting update', '12-step-meeting-list')?>"></p>
+							</form>
+						</div>
+					</div>
+				
+					<div class="postbox">
+						<div class="inside">
+							<h3 style="margin-bottom:8px;"><?php _e('Delete single meeting', '12-step-meeting-list')?></h3>
+							<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
+								<input type="hidden" name="action" value="SINGLEDELETE">
+								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
+								<p style="margin-top:0;">
+									<?php _e('Delete a meeting.', '12-step-meeting-list')?><br>
+								</p>
+								<p><input type="number" name="master_id" value=""></p>
+								<p><input type="submit" class="button button-primary" value="<?php _e('Begin meeting delete', '12-step-meeting-list')?>"></p>
+							</form>
+						</div>
+					</div>
+
+<!-- 
+/ LD_MASTER: OPTIONS HERE TO DO A FULL IMPORT FROM MASTER DATABASE, UPDATE ONE OR DELETE ONE
+--->				
+					<div class="postbox">
+						<div class="inside">
+							<h3 style="margin-bottom:8px;"><?php _e('Import CSV', '12-step-meeting-list')?></h3>
+							<p style="margin-top:0;"><?php _e('*Only use this option if there is a connection issue with the master database<br>If you do use this method, run a fresh pull at the earliest opportunity.', '12-step-meeting-list')?></p>
 							<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>" enctype="multipart/form-data">
 								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
 								<input type="file" name="tsml_import">
@@ -509,7 +697,7 @@ function tmsl_import_page() {
 										<label><input type="radio" name="delete" value="<?php echo $key?>" <?php checked($key, $delete_selected)?>> <?php echo $value?></label><br>
 									<?php }?>
 								</p>
-								<p><input type="submit" class="button button-primary" value="<?php _e('Begin', '12-step-meeting-list')?>"></p>
+								<p><input type="submit" class="button button-primary" value="<?php _e('Begin CSV import', '12-step-meeting-list')?>"></p>
 							</form>
 							<details>
 								<summary><strong><?php _e('Spreadsheet Example & Specs', '12-step-meeting-list')?></strong></summary>
@@ -556,9 +744,9 @@ function tmsl_import_page() {
 					</div>
 					<div class="postbox">
 						<div class="inside">
-							<h3><?php _e('Data Sources', '12-step-meeting-list')?></h3>
+							<h3><?php _e('Data Sources (not used here)', '12-step-meeting-list')?></h3>
 							<p><?php printf(__('Data sources are JSON feeds that contain a website\'s public meeting data. They can be used to aggregate meetings from different sites into a single master list. 
-								The data source for this website is <a href="%s" target="_blank">right here</a>. More information is available at the <a href="%s" target="_blank">Meeting Guide API Specification</a>.', '12-step-meeting-list'), admin_url('admin-ajax.php') . '?action=meetings', 'https://github.com/meeting-guide/spec')?></p>
+								Data sources listed below will pull meeting information into this website. More information is available at the <a href="%s" target="_blank">Meeting Guide API Specification</a>.', '12-step-meeting-list'), 'https://github.com/code4recovery/spec')?></p>
 							<?php if (!empty($tsml_data_sources)) {?>
 							<table>
 								<thead>
@@ -716,7 +904,7 @@ function tmsl_import_page() {
 							<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
 								<details>
 									<summary><strong><?php _e('Sharing', '12-step-meeting-list')?></strong></summary>
-									<p><?php printf(__('You can share your meeting information with other websites and apps via your <a href="%s" target="_blank">meetings feed</a>.', '12-step-meeting-list'), admin_url('admin-ajax.php?action=meetings'))?></p>
+									<p><?php printf(__('Open means your feeds are available publicly. Restricted means people need a key or to be logged in to get the feed.', '12-step-meeting-list'))?></p>
 								</details>
 								<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
 								<select name="tsml_sharing" onchange="this.form.submit()">
@@ -733,7 +921,7 @@ function tmsl_import_page() {
 							<?php if ($tsml_sharing == 'restricted') {?>
 								<details>
 									<summary><strong><?php _e('Authorized Apps', '12-step-meeting-list')?></strong></summary>
-									<p><?php _e('You may allow access to your meeting data for specific purposes, such as the <a target="_blank" href="https://meetingguide.org/">Meeting Guide App</a>.')?>
+									<p><?php _e('You may allow access to your meeting data for specific purposes, such as the <a target="_blank" href="https://meetingguide.org/">Meeting Guide App</a>.', '12-step-meeting-list')?></p>
 								</details>
 								<?php if (count($tsml_sharing_keys)) {?>
 									<table class="tsml_sharing_list">
@@ -744,7 +932,7 @@ function tmsl_import_page() {
 											));
 										?>
 										<tr>
-											<td><a href="<?php echo $address?>" target="_blank"><?php echo $name?></td>
+											<td><a href="<?php echo $address?>" target="_blank"><?php echo $name?></a></td>
 											<td>
 												<form method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
 													<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
@@ -759,12 +947,18 @@ function tmsl_import_page() {
 								<form class="columns" method="post" action="<?php echo $_SERVER['REQUEST_URI']?>">
 									<?php wp_nonce_field($tsml_nonce, 'tsml_nonce', false)?>
 									<div class="input">
-										<input type="text" name="tsml_add_sharing_key" placeholder="<?php _e('Meeting Guide')?>">
+										<input type="text" name="tsml_add_sharing_key" placeholder="<?php _e('Meeting Guide', '12-step-meeting-list')?>">
 									</div>
 									<div class="btn">
 										<input type="submit" class="button" value="<?php _e('Add', '12-step-meeting-list')?>">
 									</div>
 								</form>
+							<?php } else {?>
+								<details>
+									<summary><strong><?php _e('Public Feed', '12-step-meeting-list')?></strong></summary>
+									<p><?php _e('The following feed contains your publicly available meeting information.', '12-step-meeting-list')?></p>
+								</details>
+								<?php printf(__('<a class="public_feed" href="%s" target="_blank">Public Data Source</a>', '12-step-meeting-list'), admin_url('admin-ajax.php?action=meetings'))?>
 							<?php }?>
 
 							<details>
